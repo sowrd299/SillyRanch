@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+
+<header>
+
+<script>
+
+class Vector{
+
+    // takes the components of the vector as an array
+    constructor(components){
+        this.comps = components;
+    }
+
+    // returns the addition of this and the other vector
+    // assume both vectors are in the same dimension
+    add(other){
+        var r = new Array(this.comps.length);
+        for(var i = 0; i < this.comps.length; i++){
+            r[i] = this.comps[i] + other.comps[i];
+        }
+        return new Vector(r);
+    }
+
+    // returns the vector * a scaler
+    mul(coef){
+        var r = new Array(this.comps.length);
+        for(var i = 0; i < this.comps.length; i++){
+            r[i] = this.comps[i] * coef;
+        }
+        return new Vector(r);
+    }
+
+    // rotates the vector by the given number of radians
+    // returns the output vector without mutating
+    // assumes 2D
+    rot2D(rad){
+        var x = Math.cos(rad)*this.comps[0] - Math.sin(rad)*this.comps[1]
+        var y = Math.sin(rad)*this.comps[0] + Math.cos(rad)*this.comps[1]
+        return new Vector([Math.round(x),Math.round(y)]);
+    }
+
+    getComponent(index){
+        return this.comps[index];
+    }
+
+    toString(){
+        var t = "(";
+        var first = true;
+        for(var i = 0; i < this.comps.length; i++){
+            if(!first){
+                t += ",";
+            }else{
+                first = false;
+            }
+            t += this.comps[i]
+        }
+        t += ")"
+        return t;
+    }
+
+}
+
+// BASIC DIRECTIONS
+let D_NORTH = new Vector([0,1]);
+let D_SOUTH = new Vector([0,-1]);
+let D_EAST = new Vector([1,0]);
+let D_WEST = new Vector([-1,0]);
+
+// a class for describing the contents of a space
+class Neighbor{ }
+
+let N_WALL = new Neighbor();
+let N_EMPTY = new Neighbor();
+let N_CRITTER = new Neighbor();
+
+// a class for describing a single critter
+class CritterInfo{
+
+    // takes the starting position and direction facing as vectors
+    // takes the critter species to start as
+    constructor(pos, direction, critter){
+        this.pos = pos;
+        this.direction = direction;
+        this.critter = critter;
+    }
+
+    // gets the position of the critter
+    getPos(){
+        return this.pos;
+    }
+
+    // gets the direction it is facing
+    getDirection(){ 
+        return this.direction;
+    }
+
+    // returns the critter
+    getCritter(){
+        return this.critter;
+    }
+
+    setNeightbors(neighbors){
+        this.neighbors = neighbors;
+    }
+
+    // returns the neighbor in the given direction
+    getNeighbor(direction){
+        return this.neighbors[direction];
+    }
+
+    // returns if there is another critter facing it in the given direction
+    getThreatExists(direction){
+
+    }
+
+    // returns the coordinates at the given distance in the given direction
+    getOffsetPos(direction, dist){
+        // TODO: should make sure am working with unit vector
+        return this.pos.add(direction.mul(dist));
+    }
+
+    // moves the given amount in the given direction
+    move(direction, dist){
+        this.pos = this.getOffsetPos(direction, dist);
+        // TODO: snap to grid
+    }
+
+    // rotates the critter the given angle
+    rot(rad){
+        this.direction = this.direction.rot2D(rad);
+    }
+
+}
+
+// a class for describing something a critter can do
+class Action{
+
+    // of the candidate critters, will returns the one
+    // who will be effected when the actor acts
+    getTargets(actorInfo, candidates){
+        return [actorInfo];
+    }
+
+    // applies the effects of the action
+    apply(targetsInfo){ }
+
+}
+
+class HopAction extends Action{
+
+    apply(targetsInfo){
+        targetsInfo.forEach(
+            target => target.move(target.getDirection(), 1)
+        );
+    }
+
+}
+
+class RotateAction extends Action{
+
+    // takes the angle to rotate in radians
+    constructor(rad){
+        super();
+        this.rad = rad;
+    }
+
+    apply(targetsInfo){
+        targetsInfo.forEach(
+            target => target.rot(this.rad)
+        );
+    }
+
+}
+
+// BASIC ACTIONS
+let A_HOP = new HopAction() // ADVANCE
+let A_LEFT = new RotateAction(-Math.PI/2) // ROTATE 90 DEF LEFT
+let A_RIGHT = new RotateAction(Math.PI/2) // ROTATE 90 DEG RIGHT
+let A_INFECT = new Action() // INFECT CRITTER (one space?) IN FRONT
+
+// a superclass for describing type of critters
+class Critter{
+
+    constructor(){
+        this.age = 0; // the number of rounds the critter has been around for
+    }
+
+    getMove(critterInfo){
+        return A_LEFT;
+    }
+
+    getColor(){
+        return '#000000';
+    }
+
+    toString(){
+        return '?';
+    }
+
+    // to be called once per step
+    update(){
+        this.age++;
+    }
+
+}
+
+class Bear extends Critter{
+
+    // takes whether or not this is a polar bear
+    constructor(polar){
+        super();
+        this.polar = polar;
+        this.animation = ["/", "\\"];
+    }
+
+    getColor(){
+        if(this.polar) return '#FFFFFF';
+        else return '#000000';
+    }
+
+    toString(){
+       // advance the frame
+       this.frame = this.age % this.animation.length;
+       return this.animation[this.frame];
+    }
+
+    getMove(critterInfo){
+        var dir = critterInfo.getDirection();
+        var neighbor = critterInfo.getNeighbor(dir);
+        if(neighbor == N_CRITTER){
+            return A_INFECT;
+        }else if(neighbor == N_EMPTY){
+            return A_HOP;
+        }else{ // wall
+            return A_LEFT;
+        }
+    }
+
+}
+
+class Game{
+
+    constructor(){
+        this.crittersInfo = [new CritterInfo(new Vector([5,5]), D_WEST, new Bear(false))];
+        // the number of spaces on the board
+        this.gridWidth = 60; 
+        this.gridHeight = 30; 
+        this.neighborDirections = [D_NORTH, D_SOUTH, D_EAST, D_WEST]; // the directions in which one can be a neighbor
+    }
+
+    // takes the position in question and a lookup table of all critters by position
+    getNeighborAtPos(pos, critterInfoLookup){
+        if(pos.getComponent(0) >= this.gridWidth || pos.getComponent(0) < 0 ||
+                pos.getComponent(1) > this.gridHeight || pos.getComponent(1) < 1){ // WALL DEFINED HERE;
+                        //I can't tell you why the top and bottom need to be defined this way
+            return N_WALL;
+        /*
+        }else if(pos in critterInfoLookup){
+            return N_CRITTER;
+        */
+        }else{
+            return N_EMPTY;
+        }
+    }
+
+    // runs one actions for all critters
+    step(){
+        // setup the critter info
+        // TODO: shuffle
+        var critters = this.crittersInfo;
+        var lookup = {}; // all critters by position
+        critters.forEach(function(critter){
+            lookup[critter.getPos()] = critter;
+        });
+        // move each critter
+        for(var i = 0; i < critters.length; i++){
+            var critter = critters[i];
+            // TODO: remove the critter from lookup
+            // get the neighbors
+            var neighbors = {}; 
+            for(var j = 0; j < this.neighborDirections.length; j++){
+                var direction = this.neighborDirections[j]
+                var pos = critter.getOffsetPos(direction, 1);
+                neighbors[direction] = this.getNeighborAtPos(pos, lookup);
+            }
+            critter.setNeightbors(neighbors);
+            // run the move
+            var move = critter.getCritter().getMove(critter); // TODO: talk about ugly passing...
+            var targets = move.getTargets(critter, critters); // TODO: remove targets as they act
+            move.apply(targets);
+            // update the critter
+            critter.getCritter().update();
+        }
+    }
+
+}
+
+class Display{
+
+    constructor(canvas){
+        this.canvas = canvas;
+        this.context = this.canvas.getContext("2d");
+        this.gridScale = 22;
+    }
+
+    // TODO: this should be in it's own class
+    drawCritter(critterInfo){
+        this.context.font = "16px Arial";
+        this.context.fillStyle = critterInfo.getCritter().getColor();
+        var pos = critterInfo.getPos().mul(this.gridScale)
+        this.context.fillText(critterInfo.getCritter().toString(), pos.getComponent(0), pos.getComponent(1));
+    }
+
+    // redraws the background, erasing everything
+    drawBG(gridWidth, gridHeight){
+        // set the size of the grid
+        this.canvas.width = gridWidth * this.gridScale;
+        this.canvas.height = gridHeight * this.gridScale;
+        // clean the BG; do this second to clean new canvas size
+        this.context.fillStyle = "#20D020"; //BACKGROUND COLOR DEFINED HERE
+        this.context.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        // draw the checkers
+        this.context.fillStyle =  "#15A015"; //DARK CHECKER COLOR DEFINED HERE
+        for(var i = 0; i < gridWidth; i++){
+            for(var j = 0; j < gridHeight; j++){
+                if((i + j) % 2 == 1){
+                    this.context.fillRect(i*this.gridScale, j*this.gridScale, this.gridScale, this.gridScale);
+                }
+            }
+        }
+    }
+
+    // draws everything in the game
+    drawGame(game){
+        this.drawBG(game.gridWidth, game.gridHeight);
+        // draw critters
+        for(var i = 0; i < game.crittersInfo.length; i++){
+            this.drawCritter(game.crittersInfo[i]);
+        }
+    }
+
+}
+
+let GAME = new Game();
+
+</script>
+
+</header>
+
+
+<body style="background: #000">
+
+    <canvas id="worldCanvas" width="1000" height="500"></canvas>
+    <script>
+
+        // now that we have the canvas, create and draw on the display
+        let DISP = new Display(document.getElementById("worldCanvas"));
+        DISP.drawGame(GAME);
+
+    </script>
+
+    <br/>
+    <button id="step" onclick="GAME.step(); DISP.drawGame(GAME);">STEP</button>
+
+</body>
